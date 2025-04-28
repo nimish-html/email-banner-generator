@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client'; // Use client component helper
 import type { User } from '@supabase/supabase-js';
-// FileObject import removed as it's not used
+import { Button } from '@/components/ui/button'; // Assuming you have a Button component
+import { Textarea } from '@/components/ui/textarea'; // Assuming you have a Textarea component
+import { Input } from '@/components/ui/input'; // Assuming you have an Input component
+import { Label } from '@/components/ui/label'; // Assuming you have a Label component
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'; // Assuming you have Radio components
 
 interface BannerGeneratorFormProps {
   user: User;
@@ -29,6 +33,14 @@ interface PreviousUpload {
   url: string;
 }
 
+// Define aspect ratio types
+type AspectRatio = 'square' | 'landscape' | 'portrait';
+const aspectRatios: { value: AspectRatio; label: string; size: string }[] = [
+  { value: 'square', label: 'Square (1:1)', size: '1024x1024' },
+  { value: 'landscape', label: 'Landscape (16:9)', size: '1792x1024' }, // Using common landscape/portrait sizes
+  { value: 'portrait', label: 'Portrait (9:16)', size: '1024x1792' },
+];
+
 export default function BannerGeneratorForm({ user, onGenerationComplete }: BannerGeneratorFormProps) {
   const supabase = createClient();
   const [promptDetails, setPromptDetails] = useState(JSON.stringify(defaultPromptDetails, null, 2));
@@ -37,6 +49,7 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatio>('square'); // State for aspect ratio
 
   // State for previous uploads
   const [previousUploads, setPreviousUploads] = useState<PreviousUpload[]>([]);
@@ -178,7 +191,8 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
         body: {
           user_id: user.id,
           prompt_details: parsedPromptDetails,
-          input_image_url: uploadedImageUrl // Pass the URL obtained after upload
+          input_image_url: uploadedImageUrl, // Pass the URL obtained after upload
+          aspect_ratio: selectedAspectRatio // Pass the selected aspect ratio
         }
       });
 
@@ -197,18 +211,18 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
   };
 
   return (
-    <div className="space-y-6 p-4 border rounded-lg shadow-sm bg-white">
+    <div className="space-y-6 p-4 border rounded-lg shadow-sm bg-white dark:bg-gray-800">
       {/* Image Selection Area */}
       <div className="space-y-4">
-         <h3 className="text-lg font-medium text-gray-900">Select or Upload Image/Logo</h3>
+         <h3 className="text-lg font-medium text-gray-900 dark:text-white">Select or Upload Image/Logo</h3>
 
          {/* Previous Uploads Section */}
          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Use Previous Upload</label>
-            {isLoadingPrevious && <p className="text-sm text-gray-500">Loading previous uploads...</p>}
-            {previousUploadsError && <p className="text-sm text-red-600">{previousUploadsError}</p>}
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-white">Use Previous Upload</label>
+            {isLoadingPrevious && <p className="text-sm text-gray-500 dark:text-gray-400">Loading previous uploads...</p>}
+            {previousUploadsError && <p className="text-sm text-red-600 dark:text-red-400">{previousUploadsError}</p>}
             {!isLoadingPrevious && !previousUploadsError && previousUploads.length === 0 && (
-                <p className="text-sm text-gray-500">No previous uploads found.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No previous uploads found.</p>
             )}
             {!isLoadingPrevious && !previousUploadsError && previousUploads.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-48 overflow-y-auto border p-2 rounded">
@@ -224,7 +238,7 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
                             <img
                                 src={upload.url}
                                 alt={upload.name}
-                                className="w-full h-16 object-contain bg-gray-100"
+                                className="w-full h-16 object-contain bg-gray-100 dark:bg-gray-700"
                             />
                             {selectedPreviousName === upload.name && (
                                 <div className="absolute inset-0 bg-blue-500 bg-opacity-40 flex items-center justify-center">
@@ -240,16 +254,16 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
          {/* Separator */}
          <div className="relative">
             <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
             </div>
             <div className="relative flex justify-center">
-                <span className="px-2 bg-white text-sm text-gray-500">OR</span>
+                <span className="px-2 bg-white dark:bg-gray-800 text-sm text-gray-500 dark:text-gray-400">OR</span>
             </div>
         </div>
 
         {/* File Upload Section */}
         <div>
-            <label htmlFor="productImage" className="block text-sm font-medium text-gray-700 mb-1">Upload New Image (.png, .jpg, max 20MB)</label>
+            <label htmlFor="productImage" className="block text-sm font-medium text-gray-700 mb-1 dark:text-white">Upload New Image (.png, .jpg, max 20MB)</label>
             <input
               id="productImage"
               type="file"
@@ -265,34 +279,52 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
         {/* Combined Preview Area */}
         {uploadedImageUrl && (
           <div className="mt-2">
-            <p className="text-sm text-green-600">Using this image:</p>
+            <p className="text-sm text-green-600 dark:text-green-400">Using this image:</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={uploadedImageUrl} alt="Selected or Uploaded preview" className="mt-1 h-20 w-auto object-contain border rounded bg-gray-50" />
+            <img src={uploadedImageUrl} alt="Selected or Uploaded preview" className="mt-1 h-20 w-auto object-contain border rounded bg-gray-50 dark:bg-gray-700" />
           </div>
         )}
       </div>
 
-      {/* Prompt Details */}
-      <div>
-        <label htmlFor="promptDetails" className="block text-sm font-medium text-gray-700 mb-1">Banner Prompt Details (JSON)</label>
-        <textarea
+      {/* Prompt Details Area */}
+      <div className="space-y-2">
+        <Label htmlFor="promptDetails" className="dark:text-white">Prompt Details (JSON)</Label>
+        <Textarea
           id="promptDetails"
-          rows={6}
           value={promptDetails}
-          onChange={(e) => setPromptDetails(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPromptDetails(e.target.value)}
+          rows={10}
+          className="w-full text-sm dark:bg-gray-700 dark:text-white dark:border-gray-600"
           disabled={isGenerating}
-          className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono disabled:opacity-50 disabled:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white relative z-10"
           placeholder='Enter banner design details as JSON...' />
       </div>
 
+      {/* Aspect Ratio Selection */}
+      <div className="space-y-2">
+          <Label className="dark:text-white">Select Aspect Ratio</Label>
+          <RadioGroup
+            value={selectedAspectRatio}
+            onValueChange={(value: string) => setSelectedAspectRatio(value as AspectRatio)} // Explicitly type value as string
+            className="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0"
+            disabled={isGenerating}
+          >
+            {aspectRatios.map((ratio) => (
+              <div key={ratio.value} className="flex items-center space-x-2">
+                <RadioGroupItem value={ratio.value} id={`ratio-${ratio.value}`} className="dark:text-white dark:border-gray-600 dark:data-[state=checked]:bg-blue-500 dark:data-[state=checked]:border-blue-500"/>
+                <Label htmlFor={`ratio-${ratio.value}`} className="dark:text-white">{ratio.label}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+      </div>
+
       {/* Generate Button */}
-      <button
+      <Button
         onClick={handleGenerate}
         disabled={!uploadedImageUrl || isUploading || isGenerating}
         className="w-full inline-flex justify-center py-3 px-6 border border-transparent shadow-md text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
       >
         {isGenerating ? 'Generating...' : 'Generate Banners'}
-      </button>
+      </Button>
       {generateError && <p className="text-sm text-red-600 mt-1 text-center">{generateError}</p>}
     </div>
   );

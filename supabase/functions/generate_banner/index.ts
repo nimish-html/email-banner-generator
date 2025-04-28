@@ -1,21 +1,32 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import OpenAI from "https://esm.sh/openai@4.29.1";
+import OpenAI from "https://esm.sh/openai@4.29.1"; 
 import { corsHeaders } from '../_shared/cors.ts';
 
-console.log("generate_banner function started (v2 - using edits)");
+console.log("generate_banner function started (v3 - trying edits with size)");
+
+type AspectRatio = 'square' | 'landscape' | 'portrait';
+const sizeMap: Record<AspectRatio, string> = {
+    square: '1024x1024',
+    landscape: '1792x1024',
+    portrait: '1024x1792',
+};
 
 serve(async (req) => {
-  // This is needed if you're planning to invoke your function from a browser.
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { user_id, prompt_details, input_image_url } = await req.json();
-    console.log("Received request:", { user_id, prompt_details, input_image_url });
+    const { user_id, prompt_details, input_image_url, aspect_ratio = 'square' }: {
+        user_id: string;
+        prompt_details: Record<string, any>; 
+        input_image_url: string;
+        aspect_ratio?: AspectRatio; 
+    } = await req.json();
 
-    // 1. Validate input
+    console.log("Received request:", { user_id, prompt_details, input_image_url, aspect_ratio });
+
     if (!user_id || !prompt_details || !input_image_url) {
       console.error("Missing required fields");
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -24,7 +35,14 @@ serve(async (req) => {
       });
     }
 
-    // 2. Validate Server Config
+    if (!sizeMap[aspect_ratio]) {
+       console.error("Invalid aspect_ratio value:", aspect_ratio);
+       return new Response(JSON.stringify({ error: "Invalid aspect ratio provided" }), {
+         headers: { ...corsHeaders, "Content-Type": "application/json" },
+         status: 400,
+       });
+    }
+
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -37,7 +55,6 @@ serve(async (req) => {
         });
     }
 
-    // 3. Fetch the input image (logo) from the provided URL
     console.log("Fetching input image from URL:", input_image_url);
     const imageResponse = await fetch(input_image_url);
 
@@ -45,39 +62,54 @@ serve(async (req) => {
       throw new Error(`Failed to fetch input image: ${imageResponse.statusText}`);
     }
     const imageData = await imageResponse.blob();
-    console.log("Input image fetched, blob type:", imageData.type); // Log the detected blob type
+    console.log("Input image fetched, blob type:", imageData.type); 
 
-    // Create a File object with explicit type
     const imageFile = new File([imageData], "input_image.png", { type: "image/png" });
 
-    // 4. Call OpenAI Image Edit API
-    const openai = new OpenAI({ apiKey: openaiApiKey });
+    const targetFormatDesc = aspect_ratio === 'square' ? 'square format' :
+                             aspect_ratio === 'landscape' ? 'landscape format (e.g., 16:9 aspect ratio)' :
+                             'portrait format (e.g., 9:16 aspect ratio)';
 
-    // Construct a more descriptive prompt for the edit endpoint
-    const editPrompt = `Create a promotional banner based on the following user request: ${JSON.stringify(prompt_details)}. Use the provided image as a primary reference for style, colors, branding elements (like logos if present), and overall theme. Ensure the generated banner is landscape format (e.g., 1024x576 or similar) and incorporates the essence of the reference image.`;
+    const editPrompt = `Create a promotional banner based on the following user request: ${JSON.stringify(prompt_details)}. Use the provided image as a primary reference for style, colors, branding elements (like logos if present), and overall theme. Ensure the generated banner is in ${targetFormatDesc} and incorporates the essence of the reference image.`;
     console.log("Calling OpenAI Images Edit API with prompt:", editPrompt);
+    console.log("Target size for API call:", sizeMap[aspect_ratio]);
 
-    // Perform multipart upload directly
     const formData = new FormData();
-    formData.append("model", "gpt-image-1");
+    formData.append("model", "gpt-image-1"); 
     formData.append("prompt", editPrompt);
     formData.append("n", "1");
-    formData.append("size", "1024x1024");
-    formData.append("image", imageFile, "input_image.png");
+    formData.append("size", sizeMap[aspect_ratio]); 
+    formData.append("image", imageFile, "input_image.png"); 
 
     const editRes = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
-      headers: { "Authorization": `Bearer ${openaiApiKey}` },
+      headers: { "Authorization": `Bearer ${openaiApiKey}` }, 
       body: formData,
     });
-    if (!editRes.ok) {
-      const errJson = await editRes.json();
-      throw new Error(`OpenAI edit error: ${errJson.error.message}`);
-    }
-    const imageEditResponse = await editRes.json();
-    console.log("OpenAI edit response received.");
 
-    // 5. Process OpenAI Response and Upload Generated Banner
+    if (!editRes.ok) {
+        console.error("OpenAI API Error Status:", editRes.status, editRes.statusText);
+        let errorBodyText = `OpenAI API returned status ${editRes.status}`;
+        try {
+            const errJson = await editRes.json();
+            console.error("OpenAI API Error Body:", errJson);
+            errorBodyText = errJson.error?.message || JSON.stringify(errJson);
+        } catch (parseError) {
+            console.error("Could not parse OpenAI error response as JSON:", parseError);
+            try {
+                const textResponse = await editRes.text();
+                console.error("OpenAI API Error Body (Text):", textResponse);
+                errorBodyText = textResponse || errorBodyText;
+            } catch (textError) {
+                 console.error("Could not read OpenAI error response as text:", textError);
+            }
+        }
+        throw new Error(`OpenAI edit error: ${errorBodyText}`);
+    }
+
+    const imageEditResponse = await editRes.json();
+    console.log("OpenAI edit response received successfully.");
+
     const generatedUrls: string[] = [];
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -88,8 +120,7 @@ serve(async (req) => {
       }
       const b64 = data.b64_json;
       const buffer = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      // Save the *generated* banner to the 'banner-images' bucket
-      const generatedPath = `${user_id}/generated_${Date.now()}_${i}.png`;
+      const generatedPath = `${user_id}/generated_${Date.now()}_${i}_${aspect_ratio}.png`; 
 
       console.log(`Uploading generated banner to: ${generatedPath}`);
       const { error: uploadError } = await supabase.storage
@@ -98,7 +129,6 @@ serve(async (req) => {
 
       if (uploadError) {
         console.error("Supabase storage upload error (generated banner):", uploadError);
-        // Consider whether to return error or just log and skip this image
          return new Response(JSON.stringify({ error: `Failed to upload generated image: ${uploadError.message}` }), {
              headers: { ...corsHeaders, "Content-Type": "application/json" },
              status: 500,
@@ -106,7 +136,6 @@ serve(async (req) => {
       }
       console.log("Generated banner uploaded successfully");
 
-      // Get public URL for the *generated* banner
       const { data: publicUrlData } = supabase.storage.from("banner-images").getPublicUrl(generatedPath);
 
        if (!publicUrlData || !publicUrlData.publicUrl) {
@@ -128,15 +157,13 @@ serve(async (req) => {
        });
     }
 
-    // 6. Insert metadata into 'banners' table
-    // Note: We store the original prompt_details and input_image_url (logo)
-    // along with the URLs of the banners generated *from* them.
     console.log("Inserting banner metadata into DB...");
     const { error: insertError } = await supabase.from("banners").insert({
         user_id,
-        prompt_details, // The original user prompt details
-        input_image_url, // The URL of the user's uploaded logo/image
-        generated_urls: generatedUrls // The URLs of the banners generated using the logo
+        prompt_details, 
+        input_image_url, 
+        generated_urls: generatedUrls, 
+        // aspect_ratio: aspect_ratio 
     });
 
     if (insertError) {
@@ -148,7 +175,6 @@ serve(async (req) => {
     }
     console.log("Banner metadata inserted successfully");
 
-    // 7. Return generated banner URLs
     return new Response(JSON.stringify({ urls: generatedUrls }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -163,4 +189,4 @@ serve(async (req) => {
   }
 });
 
-console.log("generate_banner function deployed and listening (v2 - using edits)");
+console.log("generate_banner function deployed and listening (v3 - trying edits with size)");
