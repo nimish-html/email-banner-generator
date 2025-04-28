@@ -46,7 +46,7 @@ export const useUser = (): UseUserReturn => {
     return () => {
       subscription?.unsubscribe();
     };
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, [isLoading]); // Include isLoading in the dependency array
 
   return { user, supa, isLoading }; // Include isLoading in the return
 };

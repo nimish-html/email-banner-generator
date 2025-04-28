@@ -34,10 +34,10 @@ export default function BuilderClientWrapper({ user }: BuilderClientWrapperProps
       console.log("Fetched banners length:", data?.length); 
       console.log("Fetched banners first item:", data?.[0]); 
       setBanners(data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching banners:', err); 
-      console.error('Error message:', err.message); 
-      setError(`Failed to load banners: ${err.message}`);
+      console.error('Error message:', err instanceof Error ? err.message : 'Unknown error'); 
+      setError(`Failed to load banners: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setBanners([]); // Clear banners on error
     } finally {
       setIsLoading(false);

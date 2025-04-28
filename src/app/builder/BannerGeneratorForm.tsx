@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client'; // Use client component helper
 import type { User } from '@supabase/supabase-js';
-import type { FileObject } from '@supabase/storage-js'; // Import FileObject type
+// FileObject import removed as it's not used
 
 interface BannerGeneratorFormProps {
   user: User;
@@ -85,9 +85,9 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
 
       setPreviousUploads(uploadsWithUrls);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching previous uploads:', error);
-      setPreviousUploadsError(`Failed to load previous uploads: ${error.message}`);
+      setPreviousUploadsError(`Failed to load previous uploads: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoadingPrevious(false);
     }
@@ -138,9 +138,9 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
       // Optionally refresh the list of previous uploads immediately
       fetchPreviousUploads();
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading image:', error);
-      setUploadError(`Upload failed: ${error.message}`);
+      setUploadError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUploadedImageUrl(null);
     } finally {
       setIsUploading(false);
@@ -165,7 +165,7 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
     let parsedPromptDetails;
     try {
       parsedPromptDetails = JSON.parse(promptDetails);
-    } catch (e) {
+    } catch (_) {
       setGenerateError("Invalid JSON format in prompt details.");
       return;
     }
@@ -188,9 +188,9 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
       // Call the onGenerationComplete callback
       onGenerationComplete();
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating banners:', error);
-      setGenerateError(`Generation failed: ${error.message}. Please try again.`);
+      setGenerateError(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     } finally {
       setIsGenerating(false);
     }

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server"; // Use server client
 import { cookies } from 'next/headers'; // Import cookies
 
-export async function GET(req: Request) {
+export async function GET() {
   const cookieStore = cookies(); // Get cookie store
-  const supabase = createClient(cookieStore); // Pass cookieStore
+  const supabase = await createClient(); // No need to pass cookieStore as it's handled in the function
 
   // Get user session
   const { data: { user } } = await supabase.auth.getUser();

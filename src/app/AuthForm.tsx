@@ -13,7 +13,7 @@ export default function AuthForm() {
   useEffect(() => {
     // Correctly destructure the subscription object
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (event) => {
         if (event === 'SIGNED_IN') {
           console.log('AuthForm: SIGNED_IN event detected, redirecting to /builder');
           // Use replace instead of push to avoid adding the auth page to history
