@@ -165,7 +165,7 @@ export default function BannerGeneratorForm({ user, onGenerationComplete }: Bann
     let parsedPromptDetails;
     try {
       parsedPromptDetails = JSON.parse(promptDetails);
-    } catch (_) {
+    } catch {
       setGenerateError("Invalid JSON format in prompt details.");
       return;
     }
